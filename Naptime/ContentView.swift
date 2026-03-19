@@ -49,32 +49,25 @@ struct ContentView: View {
 }
 
 private struct TodayView: View {
-    @State private var isSessionActive = true
+    @State private var screenState: TodayScreenState
 
-    private let activeSession = TodayActiveSession(
-        startedAt: Calendar.current.date(byAdding: .minute, value: -43, to: .now) ?? .now,
-        status: "Sleeping"
-    )
-
-    private let summary = TodaySummary(
-        totalSleep: "4h 25m",
-        sessionCount: 3,
-        totalAwakenings: 2
-    )
-
-    private let sessions = TodaySessionItem.stubbed
+    init(screenState: TodayScreenState = .previewDefault) {
+        _screenState = State(initialValue: screenState)
+    }
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
                     TodayHeaderView()
-                    TodayCTAButton(isSessionActive: isSessionActive) {
-                        isSessionActive.toggle()
+                    TodayCTAButton(isSessionActive: screenState.isSessionActive) {
+                        screenState.toggleSessionState()
                     }
-                    TodayActiveSessionCard(session: activeSession, isSessionActive: isSessionActive)
-                    TodaySummaryBlock(summary: summary)
-                    TodaySessionListBlock(sessions: sessions)
+                    if let activeSession = screenState.activeSession {
+                        TodayActiveSessionCard(session: activeSession)
+                    }
+                    TodaySummaryBlock(summary: screenState.summary)
+                    TodaySessionListBlock(sessions: screenState.sessions)
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 20)
@@ -141,7 +134,6 @@ private struct TodayCTAButton: View {
 
 private struct TodayActiveSessionCard: View {
     let session: TodayActiveSession
-    let isSessionActive: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
@@ -152,24 +144,17 @@ private struct TodayActiveSessionCard: View {
                 Spacer()
 
                 Label(
-                    isSessionActive ? session.status : "Inactive",
-                    systemImage: isSessionActive ? "moon.zzz.fill" : "pause.circle.fill"
+                    session.status,
+                    systemImage: "moon.zzz.fill"
                 )
                 .font(.subheadline.weight(.medium))
-                .foregroundStyle(isSessionActive ? Color.indigo : .secondary)
+                .foregroundStyle(Color.indigo)
             }
 
-            if isSessionActive {
-                TimelineView(.periodic(from: .now, by: 60)) { context in
-                    VStack(alignment: .leading, spacing: 18) {
-                        DetailRow(title: "Started at", value: session.startedAt.formatted(date: .omitted, time: .shortened))
-                        DetailRow(title: "Elapsed time", value: Self.elapsedTimeString(from: session.startedAt, now: context.date))
-                    }
-                }
-            } else {
+            TimelineView(.periodic(from: .now, by: 60)) { context in
                 VStack(alignment: .leading, spacing: 18) {
-                    DetailRow(title: "Status", value: "No active sleep session")
-                    DetailRow(title: "Next action", value: "Tap Start to begin tracking")
+                    DetailRow(title: "Started at", value: session.startedAt.formatted(date: .omitted, time: .shortened))
+                    DetailRow(title: "Elapsed time", value: Self.elapsedTimeString(from: session.startedAt, now: context.date))
                 }
             }
         }
@@ -222,9 +207,16 @@ private struct TodaySessionListBlock: View {
                     .foregroundStyle(.secondary)
             }
 
-            VStack(spacing: 12) {
-                ForEach(sessions) { session in
-                    TodaySessionRow(session: session)
+            if sessions.isEmpty {
+                TodayEmptyStateCard(
+                    title: "No sessions yet",
+                    message: "Start tracking when sleep begins. Today's sessions will appear here."
+                )
+            } else {
+                VStack(spacing: 12) {
+                    ForEach(sessions) { session in
+                        TodaySessionRow(session: session)
+                    }
                 }
             }
         }
@@ -287,6 +279,23 @@ private struct SummaryMetricCard: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
         .background(.background, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+    }
+}
+
+private struct TodayEmptyStateCard: View {
+    let title: String
+    let message: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(title)
+                .font(.body.weight(.semibold))
+
+            Text(message)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+        .cardStyle()
     }
 }
 
@@ -416,6 +425,110 @@ private extension View {
     }
 }
 
-#Preview {
+private struct TodayScreenState {
+    var activeSession: TodayActiveSession?
+    var summary: TodaySummary
+    var sessions: [TodaySessionItem]
+
+    var isSessionActive: Bool {
+        activeSession != nil
+    }
+
+    mutating func toggleSessionState() {
+        if activeSession == nil {
+            activeSession = Self.mockActiveSession
+        } else {
+            activeSession = nil
+        }
+    }
+}
+
+private extension TodayScreenState {
+    static let previewDefault = noActiveSessionWithData
+
+    static let noActiveSessionEmptyDay = TodayScreenState(
+        activeSession: nil,
+        summary: TodaySummary(totalSleep: "0m", sessionCount: 0, totalAwakenings: 0),
+        sessions: []
+    )
+
+    static let noActiveSessionWithData = TodayScreenState(
+        activeSession: nil,
+        summary: TodaySummary(totalSleep: "3h 25m", sessionCount: 3, totalAwakenings: 2),
+        sessions: [
+            TodaySessionItem(
+                title: "Morning Nap",
+                timeRange: "09:10 - 09:52",
+                duration: "42m",
+                iconName: "sun.horizon.fill",
+                note: "Woke up once after 18 minutes."
+            ),
+            TodaySessionItem(
+                title: "Afternoon Nap",
+                timeRange: "13:25 - 14:40",
+                duration: "1h 15m",
+                iconName: "bed.double.fill",
+                note: nil
+            ),
+            TodaySessionItem(
+                title: "Evening Sleep",
+                timeRange: "18:55 - 20:23",
+                duration: "1h 28m",
+                iconName: "moon.stars.fill",
+                note: "Settled quickly and slept steadily."
+            )
+        ]
+    )
+
+    static let activeSessionEmptyDay = TodayScreenState(
+        activeSession: mockActiveSession,
+        summary: TodaySummary(totalSleep: "0m", sessionCount: 0, totalAwakenings: 0),
+        sessions: []
+    )
+
+    static let activeSessionWithData = TodayScreenState(
+        activeSession: mockActiveSession,
+        summary: TodaySummary(totalSleep: "4h 08m", sessionCount: 2, totalAwakenings: 1),
+        sessions: [
+            TodaySessionItem(
+                title: "Morning Nap",
+                timeRange: "08:45 - 09:30",
+                duration: "45m",
+                iconName: "sunrise.fill",
+                note: nil
+            ),
+            TodaySessionItem(
+                title: "Afternoon Nap",
+                timeRange: "13:05 - 14:28",
+                duration: "1h 23m",
+                iconName: "bed.double.fill",
+                note: "Brief awakening after 30 minutes."
+            )
+        ]
+    )
+
+    static let mockActiveSession = TodayActiveSession(
+        startedAt: Calendar.current.date(byAdding: .minute, value: -43, to: .now) ?? .now,
+        status: "Sleeping"
+    )
+}
+
+#Preview("Today / No Active / Empty") {
+    TodayView(screenState: .noActiveSessionEmptyDay)
+}
+
+#Preview("Today / No Active / With Data") {
+    TodayView(screenState: .noActiveSessionWithData)
+}
+
+#Preview("Today / Active / Empty Day") {
+    TodayView(screenState: .activeSessionEmptyDay)
+}
+
+#Preview("Today / Active / With Data") {
+    TodayView(screenState: .activeSessionWithData)
+}
+
+#Preview("App Tabs") {
     ContentView()
 }
