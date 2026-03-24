@@ -6,9 +6,24 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		BEC8C5C82F73138F00DA740E /* BACKLOG_UI_FIRST.md in Resources */ = {isa = PBXBuildFile; fileRef = BEC8C5C62F73138F00DA740E /* BACKLOG_UI_FIRST.md */; };
+		BEC8C5C92F73138F00DA740E /* ROADMAP_UI_FIRST.md in Resources */ = {isa = PBXBuildFile; fileRef = BEC8C5C72F73138F00DA740E /* ROADMAP_UI_FIRST.md */; };
+		BEC8C5CA2F73138F00DA740E /* BACKLOG_UI_FIRST.md in Resources */ = {isa = PBXBuildFile; fileRef = BEC8C5C62F73138F00DA740E /* BACKLOG_UI_FIRST.md */; };
+		BEC8C5CB2F73138F00DA740E /* ROADMAP_UI_FIRST.md in Resources */ = {isa = PBXBuildFile; fileRef = BEC8C5C72F73138F00DA740E /* ROADMAP_UI_FIRST.md */; };
+		BEC8C5CE2F7313B600DA740E /* PRD.md in Resources */ = {isa = PBXBuildFile; fileRef = BEC8C5CC2F7313B600DA740E /* PRD.md */; };
+		BEC8C5CF2F7313B600DA740E /* TECH_SPEC.md in Resources */ = {isa = PBXBuildFile; fileRef = BEC8C5CD2F7313B600DA740E /* TECH_SPEC.md */; };
+		BEC8C5D02F7313B600DA740E /* PRD.md in Resources */ = {isa = PBXBuildFile; fileRef = BEC8C5CC2F7313B600DA740E /* PRD.md */; };
+		BEC8C5D12F7313B600DA740E /* TECH_SPEC.md in Resources */ = {isa = PBXBuildFile; fileRef = BEC8C5CD2F7313B600DA740E /* TECH_SPEC.md */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		BE6E84CA2F69D38B00AD400C /* Naptime Watch App.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.extensionkit-extension"; includeInIndex = 0; path = "Naptime Watch App.appex"; sourceTree = BUILT_PRODUCTS_DIR; };
 		BEB19C442F60943900AEE3BD /* Naptime.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Naptime.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		BEC8C5C62F73138F00DA740E /* BACKLOG_UI_FIRST.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = BACKLOG_UI_FIRST.md; sourceTree = "<group>"; };
+		BEC8C5C72F73138F00DA740E /* ROADMAP_UI_FIRST.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = ROADMAP_UI_FIRST.md; sourceTree = "<group>"; };
+		BEC8C5CC2F7313B600DA740E /* PRD.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = PRD.md; sourceTree = "<group>"; };
+		BEC8C5CD2F7313B600DA740E /* TECH_SPEC.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = TECH_SPEC.md; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -61,6 +76,10 @@
 				BEB19C462F60943900AEE3BD /* Naptime */,
 				BE6E84CB2F69D38B00AD400C /* Naptime Watch App */,
 				BEB19C452F60943900AEE3BD /* Products */,
+				BEC8C5C62F73138F00DA740E /* BACKLOG_UI_FIRST.md */,
+				BEC8C5C72F73138F00DA740E /* ROADMAP_UI_FIRST.md */,
+				BEC8C5CC2F7313B600DA740E /* PRD.md */,
+				BEC8C5CD2F7313B600DA740E /* TECH_SPEC.md */,
 			);
 			sourceTree = "<group>";
 		};
@@ -163,6 +182,10 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				BEC8C5C82F73138F00DA740E /* BACKLOG_UI_FIRST.md in Resources */,
+				BEC8C5D02F7313B600DA740E /* PRD.md in Resources */,
+				BEC8C5D12F7313B600DA740E /* TECH_SPEC.md in Resources */,
+				BEC8C5C92F73138F00DA740E /* ROADMAP_UI_FIRST.md in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -170,6 +193,10 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				BEC8C5CE2F7313B600DA740E /* PRD.md in Resources */,
+				BEC8C5CF2F7313B600DA740E /* TECH_SPEC.md in Resources */,
+				BEC8C5CA2F73138F00DA740E /* BACKLOG_UI_FIRST.md in Resources */,
+				BEC8C5CB2F73138F00DA740E /* ROADMAP_UI_FIRST.md in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
