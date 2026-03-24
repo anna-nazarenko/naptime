@@ -5,6 +5,7 @@
 //  Created by Anna Nazarenko on 10/3/26.
 //
 
+import SwiftData
 import SwiftUI
 
 @main
@@ -13,5 +14,6 @@ struct NaptimeApp: App {
         WindowGroup {
             ContentView()
         }
+        .modelContainer(for: SwiftDataSleepSessionRecord.self)
     }
 }
