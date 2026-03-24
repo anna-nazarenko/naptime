@@ -97,6 +97,10 @@ private struct TodayCTAButton: View {
     let isSessionActive: Bool
     let action: () -> Void
 
+    private var gradientColors: [Color] {
+        isSessionActive ? [.indigo, .blue] : [.red, .orange]
+    }
+
     var body: some View {
         Button(action: action) {
             HStack {
@@ -114,14 +118,14 @@ private struct TodayCTAButton: View {
                 Image(systemName: isSessionActive ? "stop.fill" : "play.fill")
                     .font(.title3.weight(.bold))
                     .frame(width: 44, height: 44)
-                    .background(.white.opacity(0.18), in: Circle())
+                    .background(.white.opacity(isSessionActive ? 0.18 : 0.22), in: Circle())
             }
             .foregroundStyle(.white)
             .padding(20)
             .frame(maxWidth: .infinity, minHeight: 92)
             .background(
                 LinearGradient(
-                    colors: [Color.indigo, Color.blue],
+                    colors: gradientColors,
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
                 ),
