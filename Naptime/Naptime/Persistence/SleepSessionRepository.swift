@@ -7,9 +7,8 @@
 
 import Foundation
 
-/// Persistence boundary for the first real Start / Stop flow.
-/// This stays intentionally narrow so the SwiftData implementation can focus on
-/// the single active-session invariant without taking on edit/list/query use cases.
+/// Persistence boundary for the first real Start / Stop flow plus the Today
+/// session list read path for a selected sleep day.
 protocol SleepSessionRepository: Sendable {
     func createSession(
         startAt: Date,
@@ -22,4 +21,5 @@ protocol SleepSessionRepository: Sendable {
     ) async throws -> SleepSession
 
     func fetchActiveSession() async throws -> SleepSession?
+    func fetchSessions(for sleepDay: SleepDay) async throws -> [SleepSession]
 }

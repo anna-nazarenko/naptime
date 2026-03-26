@@ -57,16 +57,18 @@ struct ContentView: View {
 private struct TodayView: View {
     @State private var viewModel: TodayViewModel
     private let summary: TodaySummary
-    private let sessions: [TodaySessionItem]
 
     init(
         viewModel: TodayViewModel,
-        summary: TodaySummary = .placeholder,
-        sessions: [TodaySessionItem] = []
+        summary: TodaySummary = .placeholder
     ) {
         _viewModel = State(initialValue: viewModel)
         self.summary = summary
-        self.sessions = sessions
+    }
+
+    @MainActor
+    private var sessionItems: [TodaySessionItem] {
+        viewModel.sessions.map { TodaySessionItem(session: $0) }
     }
 
     var body: some View {
@@ -89,7 +91,7 @@ private struct TodayView: View {
                         TodayActiveSessionCard(session: activeSession)
                     }
                     TodaySummaryBlock(summary: summary)
-                    TodaySessionListBlock(sessions: sessions)
+                    TodaySessionListBlock(sessions: sessionItems)
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 20)
@@ -285,14 +287,23 @@ private struct TodaySessionRow: View {
         HStack(alignment: .top, spacing: 14) {
             Image(systemName: session.iconName)
                 .font(.headline)
-                .foregroundStyle(.indigo)
+                .foregroundStyle(session.accentColor)
                 .frame(width: 40, height: 40)
-                .background(Color.indigo.opacity(0.12), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .background(session.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
 
             VStack(alignment: .leading, spacing: 6) {
                 HStack {
-                    Text(session.title)
-                        .font(.body.weight(.semibold))
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(session.title)
+                            .font(.body.weight(.semibold))
+
+                        Text(session.stateLabel)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(session.accentColor)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(session.accentColor.opacity(0.12), in: Capsule())
+                    }
 
                     Spacer()
 
@@ -435,12 +446,45 @@ private struct TodaySummary {
 }
 
 private struct TodaySessionItem: Identifiable {
-    let id = UUID()
+    let id: UUID
     let title: String
     let timeRange: String
     let duration: String
     let iconName: String
+    let accentColor: Color
+    let stateLabel: String
     let note: String?
+
+    init(
+        id: UUID = UUID(),
+        title: String,
+        timeRange: String,
+        duration: String,
+        iconName: String,
+        accentColor: Color,
+        stateLabel: String,
+        note: String?
+    ) {
+        self.id = id
+        self.title = title
+        self.timeRange = timeRange
+        self.duration = duration
+        self.iconName = iconName
+        self.accentColor = accentColor
+        self.stateLabel = stateLabel
+        self.note = note
+    }
+
+    init(session: SleepSession) {
+        id = session.id
+        title = session.isActive ? "Sleep Session" : "Completed Sleep"
+        timeRange = Self.makeTimeRange(for: session)
+        duration = Self.makeDuration(for: session)
+        iconName = session.isActive ? "moon.zzz.fill" : "checkmark.circle.fill"
+        accentColor = session.isActive ? .indigo : .teal
+        stateLabel = session.isActive ? "Running" : "Completed"
+        note = session.isActive ? "Tracking now" : nil
+    }
 
     static let stubbed: [TodaySessionItem] = [
         TodaySessionItem(
@@ -448,6 +492,8 @@ private struct TodaySessionItem: Identifiable {
             timeRange: "09:10 - 09:52",
             duration: "42m",
             iconName: "sun.horizon.fill",
+            accentColor: .orange,
+            stateLabel: "Completed",
             note: "Woke up once after 18 minutes."
         ),
         TodaySessionItem(
@@ -455,6 +501,8 @@ private struct TodaySessionItem: Identifiable {
             timeRange: "13:25 - 14:40",
             duration: "1h 15m",
             iconName: "bed.double.fill",
+            accentColor: .teal,
+            stateLabel: "Completed",
             note: nil
         ),
         TodaySessionItem(
@@ -462,9 +510,37 @@ private struct TodaySessionItem: Identifiable {
             timeRange: "18:55 - 20:23",
             duration: "1h 28m",
             iconName: "moon.stars.fill",
+            accentColor: .indigo,
+            stateLabel: "Completed",
             note: "Settled quickly and slept steadily."
         )
     ]
+
+    private static func makeTimeRange(for session: SleepSession) -> String {
+        let start = session.startAt.formatted(date: .omitted, time: .shortened)
+        let end = session.endAt?.formatted(date: .omitted, time: .shortened) ?? "In Progress"
+        return "\(start) - \(end)"
+    }
+
+    private static func makeDuration(for session: SleepSession) -> String {
+        guard let duration = session.duration else {
+            return "Live"
+        }
+
+        let totalMinutes = Int(duration / 60)
+        if totalMinutes == 0 {
+            return "<1m"
+        }
+
+        let hours = totalMinutes / 60
+        let minutes = totalMinutes % 60
+
+        if hours > 0 {
+            return "\(hours)h \(minutes)m"
+        }
+
+        return "\(minutes)m"
+    }
 }
 
 private extension View {
@@ -485,9 +561,14 @@ private extension TodaySummary {
 
 private struct PreviewTodaySleepTracking: TodaySleepTracking {
     let activeSession: SleepSession?
+    let sessions: [SleepSession]
 
     func loadActiveSession() async throws -> SleepSession? {
         activeSession
+    }
+
+    func loadSessions(for sleepDay: SleepDay) async throws -> [SleepSession] {
+        sessions.filter { $0.overlaps(with: sleepDay.interval) }
     }
 
     func startSession(at startAt: Date) async throws -> SleepSession {
@@ -506,7 +587,10 @@ private struct PreviewTodaySleepTracking: TodaySleepTracking {
 
 private extension TodayViewModel {
     static let previewInactive = TodayViewModel(
-        tracking: PreviewTodaySleepTracking(activeSession: nil)
+        tracking: PreviewTodaySleepTracking(
+            activeSession: nil,
+            sessions: TodaySessionItem.stubbedSessions
+        )
     )
 
     static let previewActive = TodayViewModel(
@@ -514,9 +598,42 @@ private extension TodayViewModel {
             activeSession: try? SleepSession(
                 startAt: Calendar.current.date(byAdding: .minute, value: -43, to: .now) ?? .now,
                 createdSource: .iphone
-            )
+            ),
+            sessions: []
         )
     )
+
+    static let previewActiveWithSessionList = TodayViewModel(
+        tracking: PreviewTodaySleepTracking(
+            activeSession: try? SleepSession(
+                startAt: Calendar.current.date(byAdding: .minute, value: -43, to: .now) ?? .now,
+                createdSource: .iphone
+            ),
+            sessions: TodaySessionItem.stubbedSessions
+        )
+    )
+}
+
+private extension TodaySessionItem {
+    static var stubbedSessions: [SleepSession] {
+        let calendar = Calendar.current
+        let timeRanges = [(9, 10, 9, 52), (13, 25, 14, 40), (18, 55, 20, 23)]
+
+        return timeRanges.compactMap { startHour, startMinute, endHour, endMinute in
+            guard
+                let startAt = calendar.date(bySettingHour: startHour, minute: startMinute, second: 0, of: .now),
+                let endAt = calendar.date(bySettingHour: endHour, minute: endMinute, second: 0, of: .now)
+            else {
+                return nil
+            }
+
+            return try? SleepSession(
+                startAt: startAt,
+                endAt: endAt,
+                createdSource: .iphone
+            )
+        }
+    }
 }
 
 #Preview("Today / No Active / Empty") {
@@ -526,8 +643,7 @@ private extension TodayViewModel {
 #Preview("Today / No Active / With Data") {
     TodayView(
         viewModel: .previewInactive,
-        summary: TodaySummary(totalSleep: "3h 25m", sessionCount: 3, totalAwakenings: 2),
-        sessions: TodaySessionItem.stubbed
+        summary: TodaySummary(totalSleep: "3h 25m", sessionCount: 3, totalAwakenings: 2)
     )
 }
 
@@ -537,9 +653,8 @@ private extension TodayViewModel {
 
 #Preview("Today / Active / With Data") {
     TodayView(
-        viewModel: .previewActive,
-        summary: TodaySummary(totalSleep: "4h 08m", sessionCount: 2, totalAwakenings: 1),
-        sessions: Array(TodaySessionItem.stubbed.prefix(2))
+        viewModel: .previewActiveWithSessionList,
+        summary: TodaySummary(totalSleep: "4h 08m", sessionCount: 2, totalAwakenings: 1)
     )
 }
 

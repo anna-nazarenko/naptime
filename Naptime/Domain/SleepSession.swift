@@ -54,6 +54,11 @@ struct SleepSession: Identifiable, Equatable, Hashable, Codable, Sendable {
         return endAt.timeIntervalSince(startAt)
     }
 
+    func overlaps(with interval: DateInterval) -> Bool {
+        let sessionEnd = endAt ?? .distantFuture
+        return startAt < interval.end && sessionEnd > interval.start
+    }
+
     mutating func finish(
         at endAt: Date,
         source: SleepSessionSource,

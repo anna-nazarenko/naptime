@@ -9,9 +9,10 @@ import Foundation
 
 /// Today-specific contract for the first vertical slice on iPhone.
 /// The service hides persistence details and keeps the screen focused on the
-/// running session state only.
+/// running session state plus the selected sleep day session list.
 protocol TodaySleepTracking: Sendable {
     func loadActiveSession() async throws -> SleepSession?
+    func loadSessions(for sleepDay: SleepDay) async throws -> [SleepSession]
     func startSession(at startAt: Date) async throws -> SleepSession
     func stopSession(at endAt: Date) async throws -> SleepSession
 }
@@ -25,6 +26,10 @@ struct DefaultTodaySleepTracking: TodaySleepTracking {
 
     func loadActiveSession() async throws -> SleepSession? {
         try await repository.fetchActiveSession()
+    }
+
+    func loadSessions(for sleepDay: SleepDay) async throws -> [SleepSession] {
+        try await repository.fetchSessions(for: sleepDay)
     }
 
     func startSession(at startAt: Date) async throws -> SleepSession {

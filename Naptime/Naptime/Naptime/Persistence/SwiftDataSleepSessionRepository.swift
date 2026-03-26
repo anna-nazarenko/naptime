@@ -76,6 +76,23 @@ final class SwiftDataSleepSessionRepository: SleepSessionRepository, @unchecked 
         return try fetchActiveRecord(in: context)?.asDomain()
     }
 
+    func fetchSessions(for sleepDay: SleepDay) async throws -> [SleepSession] {
+        let context = ModelContext(modelContainer)
+        let interval = sleepDay.interval
+
+        let descriptor = FetchDescriptor<SwiftDataSleepSessionRecord>(
+            predicate: #Predicate { record in
+                record.startAt < interval.end
+            },
+            sortBy: [SortDescriptor(\.startAt, order: .reverse)]
+        )
+
+        let records = try context.fetch(descriptor)
+        return try records
+            .map { try $0.asDomain() }
+            .filter { $0.overlaps(with: interval) }
+    }
+
     private func fetchActiveRecord(in context: ModelContext) throws -> SwiftDataSleepSessionRecord? {
         var descriptor = FetchDescriptor<SwiftDataSleepSessionRecord>(
             predicate: #Predicate { record in
