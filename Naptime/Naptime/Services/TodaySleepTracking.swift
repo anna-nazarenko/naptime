@@ -28,10 +28,22 @@ struct DefaultTodaySleepTracking: TodaySleepTracking {
     }
 
     func startSession(at startAt: Date) async throws -> SleepSession {
-        try await repository.createSession(
-            startAt: startAt,
-            createdSource: .iphone
-        )
+        do {
+            return try await repository.createSession(
+                startAt: startAt,
+                createdSource: .iphone
+            )
+        } catch let error as SleepSessionError {
+            guard error == .activeSessionAlreadyExists else {
+                throw error
+            }
+
+            guard let activeSession = try await repository.fetchActiveSession() else {
+                throw error
+            }
+
+            return activeSession
+        }
     }
 
     func stopSession(at endAt: Date) async throws -> SleepSession {
