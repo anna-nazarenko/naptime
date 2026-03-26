@@ -8,9 +8,15 @@
 import SwiftUI
 
 struct ContentView: View {
+    private let todayViewModel: TodayViewModel
+
+    init(todayViewModel: TodayViewModel) {
+        self.todayViewModel = todayViewModel
+    }
+
     var body: some View {
         TabView {
-            TodayView()
+            TodayView(viewModel: todayViewModel)
                 .tabItem {
                     Label("Today", systemImage: "sun.max.fill")
                 }
@@ -49,10 +55,18 @@ struct ContentView: View {
 }
 
 private struct TodayView: View {
-    @State private var screenState: TodayScreenState
+    @State private var viewModel: TodayViewModel
+    private let summary: TodaySummary
+    private let sessions: [TodaySessionItem]
 
-    init(screenState: TodayScreenState = .previewDefault) {
-        _screenState = State(initialValue: screenState)
+    init(
+        viewModel: TodayViewModel,
+        summary: TodaySummary = .placeholder,
+        sessions: [TodaySessionItem] = []
+    ) {
+        _viewModel = State(initialValue: viewModel)
+        self.summary = summary
+        self.sessions = sessions
     }
 
     var body: some View {
@@ -60,14 +74,22 @@ private struct TodayView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
                     TodayHeaderView()
-                    TodayCTAButton(isSessionActive: screenState.isSessionActive) {
-                        screenState.toggleSessionState()
+                    TodayCTAButton(
+                        isSessionActive: viewModel.isSessionActive,
+                        isLoading: viewModel.isLoading
+                    ) {
+                        Task {
+                            await viewModel.toggleSession(now: .now)
+                        }
                     }
-                    if let activeSession = screenState.activeSession {
+                    if let errorMessage = viewModel.errorMessage {
+                        TodayErrorCard(message: errorMessage)
+                    }
+                    if let activeSession = viewModel.activeSession {
                         TodayActiveSessionCard(session: activeSession)
                     }
-                    TodaySummaryBlock(summary: screenState.summary)
-                    TodaySessionListBlock(sessions: screenState.sessions)
+                    TodaySummaryBlock(summary: summary)
+                    TodaySessionListBlock(sessions: sessions)
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 20)
@@ -75,6 +97,9 @@ private struct TodayView: View {
             }
             .background(Color(.systemGroupedBackground))
             .navigationBarHidden(true)
+        }
+        .task {
+            await viewModel.loadIfNeeded()
         }
     }
 }
@@ -95,6 +120,7 @@ private struct TodayHeaderView: View {
 
 private struct TodayCTAButton: View {
     let isSessionActive: Bool
+    let isLoading: Bool
     let action: () -> Void
 
     private var gradientColors: [Color] {
@@ -108,17 +134,25 @@ private struct TodayCTAButton: View {
                     Text(isSessionActive ? "Stop" : "Start")
                         .font(.title2.weight(.semibold))
 
-                    Text(isSessionActive ? "End the current sleep session" : "Begin tracking a new sleep session")
+                    Text(isLoading ? "Updating session state" : (isSessionActive ? "End the current sleep session" : "Begin tracking a new sleep session"))
                         .font(.subheadline)
                         .foregroundStyle(.white.opacity(0.88))
                 }
 
                 Spacer()
 
-                Image(systemName: isSessionActive ? "stop.fill" : "play.fill")
-                    .font(.title3.weight(.bold))
-                    .frame(width: 44, height: 44)
-                    .background(.white.opacity(isSessionActive ? 0.18 : 0.22), in: Circle())
+                if isLoading {
+                    ProgressView()
+                        .progressViewStyle(.circular)
+                        .tint(.white)
+                        .frame(width: 44, height: 44)
+                        .background(.white.opacity(isSessionActive ? 0.18 : 0.22), in: Circle())
+                } else {
+                    Image(systemName: isSessionActive ? "stop.fill" : "play.fill")
+                        .font(.title3.weight(.bold))
+                        .frame(width: 44, height: 44)
+                        .background(.white.opacity(isSessionActive ? 0.18 : 0.22), in: Circle())
+                }
             }
             .foregroundStyle(.white)
             .padding(20)
@@ -133,11 +167,12 @@ private struct TodayCTAButton: View {
             )
         }
         .buttonStyle(.plain)
+        .disabled(isLoading)
     }
 }
 
 private struct TodayActiveSessionCard: View {
-    let session: TodayActiveSession
+    let session: SleepSession
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
@@ -148,7 +183,7 @@ private struct TodayActiveSessionCard: View {
                 Spacer()
 
                 Label(
-                    session.status,
+                    "Sleeping",
                     systemImage: "moon.zzz.fill"
                 )
                 .font(.subheadline.weight(.medium))
@@ -157,8 +192,8 @@ private struct TodayActiveSessionCard: View {
 
             TimelineView(.periodic(from: .now, by: 60)) { context in
                 VStack(alignment: .leading, spacing: 18) {
-                    DetailRow(title: "Started at", value: session.startedAt.formatted(date: .omitted, time: .shortened))
-                    DetailRow(title: "Elapsed time", value: Self.elapsedTimeString(from: session.startedAt, now: context.date))
+                    DetailRow(title: "Started at", value: session.startAt.formatted(date: .omitted, time: .shortened))
+                    DetailRow(title: "Elapsed time", value: Self.elapsedTimeString(from: session.startAt, now: context.date))
                 }
             }
         }
@@ -175,6 +210,22 @@ private struct TodayActiveSessionCard: View {
         }
 
         return "\(minutes)m"
+    }
+}
+
+private struct TodayErrorCard: View {
+    let message: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.orange)
+
+            Text(message)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+        .cardStyle()
     }
 }
 
@@ -377,11 +428,6 @@ private struct PlaceholderCard: View {
     }
 }
 
-private struct TodayActiveSession {
-    let startedAt: Date
-    let status: String
-}
-
 private struct TodaySummary {
     let totalSleep: String
     let sessionCount: Int
@@ -429,110 +475,74 @@ private extension View {
     }
 }
 
-private struct TodayScreenState {
-    var activeSession: TodayActiveSession?
-    var summary: TodaySummary
-    var sessions: [TodaySessionItem]
+private extension TodaySummary {
+    static let placeholder = TodaySummary(
+        totalSleep: "Not Yet",
+        sessionCount: 0,
+        totalAwakenings: 0
+    )
+}
 
-    var isSessionActive: Bool {
-        activeSession != nil
+private struct PreviewTodaySleepTracking: TodaySleepTracking {
+    let activeSession: SleepSession?
+
+    func loadActiveSession() async throws -> SleepSession? {
+        activeSession
     }
 
-    mutating func toggleSessionState() {
-        if activeSession == nil {
-            activeSession = Self.mockActiveSession
-        } else {
-            activeSession = nil
-        }
+    func startSession(at startAt: Date) async throws -> SleepSession {
+        try SleepSession(startAt: startAt, createdSource: .iphone)
+    }
+
+    func stopSession(at endAt: Date) async throws -> SleepSession {
+        var session = try SleepSession(
+            startAt: Calendar.current.date(byAdding: .minute, value: -43, to: endAt) ?? endAt.addingTimeInterval(-2580),
+            createdSource: .iphone
+        )
+        try session.finish(at: endAt, source: .iphone)
+        return session
     }
 }
 
-private extension TodayScreenState {
-    static let previewDefault = noActiveSessionWithData
-
-    static let noActiveSessionEmptyDay = TodayScreenState(
-        activeSession: nil,
-        summary: TodaySummary(totalSleep: "0m", sessionCount: 0, totalAwakenings: 0),
-        sessions: []
+private extension TodayViewModel {
+    static let previewInactive = TodayViewModel(
+        tracking: PreviewTodaySleepTracking(activeSession: nil)
     )
 
-    static let noActiveSessionWithData = TodayScreenState(
-        activeSession: nil,
-        summary: TodaySummary(totalSleep: "3h 25m", sessionCount: 3, totalAwakenings: 2),
-        sessions: [
-            TodaySessionItem(
-                title: "Morning Nap",
-                timeRange: "09:10 - 09:52",
-                duration: "42m",
-                iconName: "sun.horizon.fill",
-                note: "Woke up once after 18 minutes."
-            ),
-            TodaySessionItem(
-                title: "Afternoon Nap",
-                timeRange: "13:25 - 14:40",
-                duration: "1h 15m",
-                iconName: "bed.double.fill",
-                note: nil
-            ),
-            TodaySessionItem(
-                title: "Evening Sleep",
-                timeRange: "18:55 - 20:23",
-                duration: "1h 28m",
-                iconName: "moon.stars.fill",
-                note: "Settled quickly and slept steadily."
+    static let previewActive = TodayViewModel(
+        tracking: PreviewTodaySleepTracking(
+            activeSession: try? SleepSession(
+                startAt: Calendar.current.date(byAdding: .minute, value: -43, to: .now) ?? .now,
+                createdSource: .iphone
             )
-        ]
-    )
-
-    static let activeSessionEmptyDay = TodayScreenState(
-        activeSession: mockActiveSession,
-        summary: TodaySummary(totalSleep: "0m", sessionCount: 0, totalAwakenings: 0),
-        sessions: []
-    )
-
-    static let activeSessionWithData = TodayScreenState(
-        activeSession: mockActiveSession,
-        summary: TodaySummary(totalSleep: "4h 08m", sessionCount: 2, totalAwakenings: 1),
-        sessions: [
-            TodaySessionItem(
-                title: "Morning Nap",
-                timeRange: "08:45 - 09:30",
-                duration: "45m",
-                iconName: "sunrise.fill",
-                note: nil
-            ),
-            TodaySessionItem(
-                title: "Afternoon Nap",
-                timeRange: "13:05 - 14:28",
-                duration: "1h 23m",
-                iconName: "bed.double.fill",
-                note: "Brief awakening after 30 minutes."
-            )
-        ]
-    )
-
-    static let mockActiveSession = TodayActiveSession(
-        startedAt: Calendar.current.date(byAdding: .minute, value: -43, to: .now) ?? .now,
-        status: "Sleeping"
+        )
     )
 }
 
 #Preview("Today / No Active / Empty") {
-    TodayView(screenState: .noActiveSessionEmptyDay)
+    TodayView(viewModel: .previewInactive)
 }
 
 #Preview("Today / No Active / With Data") {
-    TodayView(screenState: .noActiveSessionWithData)
+    TodayView(
+        viewModel: .previewInactive,
+        summary: TodaySummary(totalSleep: "3h 25m", sessionCount: 3, totalAwakenings: 2),
+        sessions: TodaySessionItem.stubbed
+    )
 }
 
 #Preview("Today / Active / Empty Day") {
-    TodayView(screenState: .activeSessionEmptyDay)
+    TodayView(viewModel: .previewActive)
 }
 
 #Preview("Today / Active / With Data") {
-    TodayView(screenState: .activeSessionWithData)
+    TodayView(
+        viewModel: .previewActive,
+        summary: TodaySummary(totalSleep: "4h 08m", sessionCount: 2, totalAwakenings: 1),
+        sessions: Array(TodaySessionItem.stubbed.prefix(2))
+    )
 }
 
 #Preview("App Tabs") {
-    ContentView()
+    ContentView(todayViewModel: .previewInactive)
 }

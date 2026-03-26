@@ -12,6 +12,7 @@ import Observation
 @Observable
 final class TodayViewModel {
     private let tracking: any TodaySleepTracking
+    private var hasLoaded = false
 
     private(set) var activeSession: SleepSession?
     private(set) var isLoading = false
@@ -27,6 +28,12 @@ final class TodayViewModel {
 
     var isSessionActive: Bool {
         activeSession?.isActive == true
+    }
+
+    func loadIfNeeded() async {
+        guard hasLoaded == false else { return }
+        hasLoaded = true
+        await load()
     }
 
     func load() async {

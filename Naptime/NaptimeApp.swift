@@ -10,10 +10,27 @@ import SwiftUI
 
 @main
 struct NaptimeApp: App {
+    private let modelContainer: ModelContainer
+    private let todayViewModel: TodayViewModel
+
+    init() {
+        do {
+            let container = try ModelContainer(for: SwiftDataSleepSessionRecord.self)
+            self.modelContainer = container
+            self.todayViewModel = TodayViewModel(
+                tracking: DefaultTodaySleepTracking(
+                    repository: SwiftDataSleepSessionRepository(modelContainer: container)
+                )
+            )
+        } catch {
+            fatalError("Failed to configure SwiftData container: \(error)")
+        }
+    }
+
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            ContentView(todayViewModel: todayViewModel)
         }
-        .modelContainer(for: SwiftDataSleepSessionRecord.self)
+        .modelContainer(modelContainer)
     }
 }
