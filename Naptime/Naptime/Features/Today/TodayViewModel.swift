@@ -36,6 +36,14 @@ final class TodayViewModel {
         activeSession?.isActive == true
     }
 
+    var summary: TodaySummary {
+        TodaySummary(
+            sessions: sessions,
+            sleepDay: selectedSleepDay,
+            now: .now
+        )
+    }
+
     func loadIfNeeded() async {
         guard hasLoaded == false else { return }
         hasLoaded = true
@@ -96,5 +104,47 @@ final class TodayViewModel {
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+}
+
+struct TodaySummary: Equatable, Sendable {
+    let totalSleep: String
+    let sessionCount: Int
+    let totalAwakeTime: String
+
+    init(
+        sessions: [SleepSession],
+        sleepDay: SleepDay,
+        now: Date
+    ) {
+        let boundedIntervals = sessions.compactMap { $0.boundedInterval(within: sleepDay.interval, now: now) }
+
+        let totalSleepDuration = boundedIntervals.reduce(into: TimeInterval.zero) { result, interval in
+            result += interval.duration
+        }
+        let awakeWindowEnd = min(max(now, sleepDay.interval.start), sleepDay.interval.end)
+        let elapsedDayDuration = max(awakeWindowEnd.timeIntervalSince(sleepDay.interval.start), 0)
+        let totalAwakeDuration = max(elapsedDayDuration - totalSleepDuration, 0)
+
+        self.totalSleep = Self.format(duration: totalSleepDuration)
+        self.sessionCount = sessions.count
+        self.totalAwakeTime = Self.format(duration: totalAwakeDuration)
+    }
+
+    private static func format(duration: TimeInterval) -> String {
+        let totalMinutes = Int(duration / 60)
+
+        if totalMinutes == 0 {
+            return duration > 0 ? "<1m" : "0m"
+        }
+
+        let hours = totalMinutes / 60
+        let minutes = totalMinutes % 60
+
+        if hours > 0 {
+            return "\(hours)h \(minutes)m"
+        }
+
+        return "\(minutes)m"
     }
 }

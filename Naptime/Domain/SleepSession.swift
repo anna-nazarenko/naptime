@@ -59,6 +59,21 @@ struct SleepSession: Identifiable, Equatable, Hashable, Codable, Sendable {
         return startAt < interval.end && sessionEnd > interval.start
     }
 
+    func boundedInterval(within interval: DateInterval, now: Date = .now) -> DateInterval? {
+        let boundedStart = max(startAt, interval.start)
+        let boundedEnd = min(endAt ?? now, interval.end)
+
+        guard boundedEnd > boundedStart else {
+            return nil
+        }
+
+        return DateInterval(start: boundedStart, end: boundedEnd)
+    }
+
+    func sleepDuration(within interval: DateInterval, now: Date = .now) -> TimeInterval {
+        boundedInterval(within: interval, now: now)?.duration ?? 0
+    }
+
     mutating func finish(
         at endAt: Date,
         source: SleepSessionSource,

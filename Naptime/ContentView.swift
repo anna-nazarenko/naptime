@@ -56,14 +56,9 @@ struct ContentView: View {
 
 private struct TodayView: View {
     @State private var viewModel: TodayViewModel
-    private let summary: TodaySummary
 
-    init(
-        viewModel: TodayViewModel,
-        summary: TodaySummary = .placeholder
-    ) {
+    init(viewModel: TodayViewModel) {
         _viewModel = State(initialValue: viewModel)
-        self.summary = summary
     }
 
     @MainActor
@@ -90,7 +85,7 @@ private struct TodayView: View {
                     if let activeSession = viewModel.activeSession {
                         TodayActiveSessionCard(session: activeSession)
                     }
-                    TodaySummaryBlock(summary: summary)
+                    TodaySummaryBlock(summary: viewModel.summary)
                     TodaySessionListBlock(sessions: sessionItems)
                 }
                 .padding(.horizontal, 20)
@@ -242,7 +237,7 @@ private struct TodaySummaryBlock: View {
             HStack(spacing: 12) {
                 SummaryMetricCard(title: "Total Sleep", value: summary.totalSleep)
                 SummaryMetricCard(title: "Sessions", value: "\(summary.sessionCount)")
-                SummaryMetricCard(title: "Awakenings", value: "\(summary.totalAwakenings)")
+                SummaryMetricCard(title: "Awake Time", value: summary.totalAwakeTime)
             }
         }
     }
@@ -439,12 +434,6 @@ private struct PlaceholderCard: View {
     }
 }
 
-private struct TodaySummary {
-    let totalSleep: String
-    let sessionCount: Int
-    let totalAwakenings: Int
-}
-
 private struct TodaySessionItem: Identifiable {
     let id: UUID
     let title: String
@@ -551,14 +540,6 @@ private extension View {
     }
 }
 
-private extension TodaySummary {
-    static let placeholder = TodaySummary(
-        totalSleep: "Not Yet",
-        sessionCount: 0,
-        totalAwakenings: 0
-    )
-}
-
 private struct PreviewTodaySleepTracking: TodaySleepTracking {
     let activeSession: SleepSession?
     let sessions: [SleepSession]
@@ -641,10 +622,7 @@ private extension TodaySessionItem {
 }
 
 #Preview("Today / No Active / With Data") {
-    TodayView(
-        viewModel: .previewInactive,
-        summary: TodaySummary(totalSleep: "3h 25m", sessionCount: 3, totalAwakenings: 2)
-    )
+    TodayView(viewModel: .previewInactive)
 }
 
 #Preview("Today / Active / Empty Day") {
@@ -652,10 +630,7 @@ private extension TodaySessionItem {
 }
 
 #Preview("Today / Active / With Data") {
-    TodayView(
-        viewModel: .previewActiveWithSessionList,
-        summary: TodaySummary(totalSleep: "4h 08m", sessionCount: 2, totalAwakenings: 1)
-    )
+    TodayView(viewModel: .previewActiveWithSessionList)
 }
 
 #Preview("App Tabs") {
