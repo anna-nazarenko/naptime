@@ -12,7 +12,8 @@ import Observation
 @Observable
 final class TodayViewModel {
     private let tracking: any TodaySleepTracking
-    private var hasLoaded = false
+    private var hasAttemptedInitialLoad = false
+    private(set) var hasLoadedOnce = false
 
     private(set) var selectedSleepDay: SleepDay
     private(set) var activeSession: SleepSession?
@@ -44,9 +45,25 @@ final class TodayViewModel {
         )
     }
 
+    var screenState: TodayScreenState {
+        if isLoading && hasLoadedOnce == false {
+            return .loading
+        }
+
+        if isLoading {
+            return .partial
+        }
+
+        if sessions.isEmpty && activeSession == nil {
+            return .empty
+        }
+
+        return .content
+    }
+
     func loadIfNeeded() async {
-        guard hasLoaded == false else { return }
-        hasLoaded = true
+        guard hasAttemptedInitialLoad == false else { return }
+        hasAttemptedInitialLoad = true
         await load()
     }
 
@@ -60,8 +77,10 @@ final class TodayViewModel {
 
             self.activeSession = try await activeSession
             self.sessions = try await sessions
+            hasLoadedOnce = true
             errorMessage = nil
         } catch {
+            hasLoadedOnce = true
             errorMessage = error.localizedDescription
         }
     }
@@ -107,10 +126,31 @@ final class TodayViewModel {
     }
 }
 
+enum TodayScreenState: Equatable, Sendable {
+    case loading
+    case empty
+    case partial
+    case content
+}
+
 struct TodaySummary: Equatable, Sendable {
     let totalSleep: String
     let sessionCount: Int
     let totalAwakeTime: String
+
+    var sessionCountLabel: String {
+        "\(sessionCount)"
+    }
+
+    private init(
+        totalSleep: String,
+        sessionCount: Int,
+        totalAwakeTime: String
+    ) {
+        self.totalSleep = totalSleep
+        self.sessionCount = sessionCount
+        self.totalAwakeTime = totalAwakeTime
+    }
 
     init(
         sessions: [SleepSession],
@@ -147,4 +187,10 @@ struct TodaySummary: Equatable, Sendable {
 
         return "\(minutes)m"
     }
+
+    static let loadingPlaceholder = TodaySummary(
+        totalSleep: "--",
+        sessionCount: 0,
+        totalAwakeTime: "--"
+    )
 }

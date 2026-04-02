@@ -85,8 +85,14 @@ private struct TodayView: View {
                     if let activeSession = viewModel.activeSession {
                         TodayActiveSessionCard(session: activeSession)
                     }
-                    TodaySummaryBlock(summary: viewModel.summary)
-                    TodaySessionListBlock(sessions: sessionItems)
+                    TodaySummaryBlock(
+                        summary: viewModel.summary,
+                        state: viewModel.screenState
+                    )
+                    TodaySessionListBlock(
+                        sessions: sessionItems,
+                        state: viewModel.screenState
+                    )
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 20)
@@ -228,16 +234,28 @@ private struct TodayErrorCard: View {
 
 private struct TodaySummaryBlock: View {
     let summary: TodaySummary
+    let state: TodayScreenState
+
+    private var displayedSummary: TodaySummary {
+        state == .loading ? .loadingPlaceholder : summary
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Summary")
-                .font(.headline)
+            HStack {
+                Text("Summary")
+                    .font(.headline)
+
+                if state == .loading || state == .partial {
+                    ProgressView()
+                        .controlSize(.small)
+                }
+            }
 
             HStack(spacing: 12) {
-                SummaryMetricCard(title: "Total Sleep", value: summary.totalSleep)
-                SummaryMetricCard(title: "Sessions", value: "\(summary.sessionCount)")
-                SummaryMetricCard(title: "Awake Time", value: summary.totalAwakeTime)
+                SummaryMetricCard(title: "Total Sleep", value: displayedSummary.totalSleep)
+                SummaryMetricCard(title: "Sessions", value: displayedSummary.sessionCountLabel)
+                SummaryMetricCard(title: "Awake Time", value: displayedSummary.totalAwakeTime)
             }
         }
     }
@@ -245,12 +263,18 @@ private struct TodaySummaryBlock: View {
 
 private struct TodaySessionListBlock: View {
     let sessions: [TodaySessionItem]
+    let state: TodayScreenState
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
                 Text("Today's Sessions")
                     .font(.headline)
+
+                if state == .partial {
+                    ProgressView()
+                        .controlSize(.small)
+                }
 
                 Spacer()
 
@@ -259,7 +283,12 @@ private struct TodaySessionListBlock: View {
                     .foregroundStyle(.secondary)
             }
 
-            if sessions.isEmpty {
+            if state == .loading {
+                TodayEmptyStateCard(
+                    title: "Loading sessions",
+                    message: "Today's sleep sessions are being loaded."
+                )
+            } else if sessions.isEmpty {
                 TodayEmptyStateCard(
                     title: "No sessions yet",
                     message: "Start tracking when sleep begins. Today's sessions will appear here."
