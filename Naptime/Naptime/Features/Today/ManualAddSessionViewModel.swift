@@ -12,9 +12,14 @@ import Observation
 @Observable
 final class ManualAddSessionViewModel {
     private let onSave: @Sendable (Date, Date) async throws -> Void
+    private static let invalidTimeRangeMessage = "End time must be later than start time."
 
-    var startAt: Date
-    var endAt: Date
+    var startAt: Date {
+        didSet { errorMessage = nil }
+    }
+    var endAt: Date {
+        didSet { errorMessage = nil }
+    }
     private(set) var isSaving = false
     private(set) var errorMessage: String?
 
@@ -29,11 +34,15 @@ final class ManualAddSessionViewModel {
     }
 
     var canSave: Bool {
-        isSaving == false && endAt > startAt
+        isSaving == false
     }
 
     func save() async -> Bool {
         guard canSave else { return false }
+        guard endAt > startAt else {
+            errorMessage = Self.invalidTimeRangeMessage
+            return false
+        }
 
         isSaving = true
         defer { isSaving = false }
