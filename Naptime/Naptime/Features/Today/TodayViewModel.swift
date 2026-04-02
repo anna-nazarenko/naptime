@@ -129,6 +129,11 @@ final class TodayViewModel {
         _ = try await tracking.addCompletedSession(startAt: startAt, endAt: endAt)
         await load()
     }
+
+    func editSession(id: UUID, startAt: Date, endAt: Date) async throws {
+        _ = try await tracking.updateSession(id: id, startAt: startAt, endAt: endAt)
+        await load()
+    }
 }
 
 enum TodayScreenState: Equatable, Sendable {

@@ -45,6 +45,41 @@ final class SwiftDataSleepSessionRepository: SleepSessionRepository, @unchecked 
         )
     }
 
+    func updateSession(
+        id: UUID,
+        startAt: Date,
+        endAt: Date,
+        source: SleepSessionSource
+    ) async throws -> SleepSession {
+        let context = ModelContext(modelContainer)
+
+        let descriptor = FetchDescriptor<SwiftDataSleepSessionRecord>(
+            predicate: #Predicate { record in
+                record.id == id
+            }
+        )
+
+        guard let record = try context.fetch(descriptor).first else {
+            throw SleepSessionError.noActiveSession
+        }
+
+        var session = try record.asDomain()
+        try session.updateTimes(
+            startAt: startAt,
+            endAt: endAt,
+            source: source
+        )
+
+        record.startAt = session.startAt
+        record.endAt = session.endAt
+        record.updatedAt = session.updatedAt
+        record.lastModifiedSource = session.lastModifiedSource
+
+        try context.save()
+
+        return session
+    }
+
     func finishActiveSession(
         endAt: Date,
         source: SleepSessionSource

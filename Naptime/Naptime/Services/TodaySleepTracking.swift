@@ -14,6 +14,7 @@ protocol TodaySleepTracking: Sendable {
     func loadActiveSession() async throws -> SleepSession?
     func loadSessions(for sleepDay: SleepDay) async throws -> [SleepSession]
     func addCompletedSession(startAt: Date, endAt: Date) async throws -> SleepSession
+    func updateSession(id: UUID, startAt: Date, endAt: Date) async throws -> SleepSession
     func startSession(at startAt: Date) async throws -> SleepSession
     func stopSession(at endAt: Date) async throws -> SleepSession
 }
@@ -38,6 +39,15 @@ struct DefaultTodaySleepTracking: TodaySleepTracking {
             startAt: startAt,
             endAt: endAt,
             createdSource: .manual
+        )
+    }
+
+    func updateSession(id: UUID, startAt: Date, endAt: Date) async throws -> SleepSession {
+        try await repository.updateSession(
+            id: id,
+            startAt: startAt,
+            endAt: endAt,
+            source: .manual
         )
     }
 

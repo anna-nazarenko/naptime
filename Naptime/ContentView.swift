@@ -57,6 +57,7 @@ struct ContentView: View {
 private struct TodayView: View {
     @State private var viewModel: TodayViewModel
     @State private var isPresentingManualAdd = false
+    @State private var editingSession: SleepSession?
 
     init(viewModel: TodayViewModel) {
         _viewModel = State(initialValue: viewModel)
@@ -94,7 +95,10 @@ private struct TodayView: View {
                     )
                     TodaySessionListBlock(
                         sessions: sessionItems,
-                        state: viewModel.screenState
+                        state: viewModel.screenState,
+                        onSelectSession: { sessionID in
+                            editingSession = viewModel.sessions.first { $0.id == sessionID }
+                        }
                     )
                 }
                 .padding(.horizontal, 20)
@@ -111,6 +115,13 @@ private struct TodayView: View {
             ManualAddSessionView(
                 viewModel: ManualAddSessionViewModel { startAt, endAt in
                     try await viewModel.addManualSession(startAt: startAt, endAt: endAt)
+                }
+            )
+        }
+        .sheet(item: $editingSession) { session in
+            EditSessionView(
+                viewModel: EditSessionViewModel(session: session) { id, startAt, endAt in
+                    try await viewModel.editSession(id: id, startAt: startAt, endAt: endAt)
                 }
             )
         }
@@ -292,6 +303,7 @@ private struct TodaySummaryBlock: View {
 private struct TodaySessionListBlock: View {
     let sessions: [TodaySessionItem]
     let state: TodayScreenState
+    let onSelectSession: (UUID) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -324,7 +336,9 @@ private struct TodaySessionListBlock: View {
             } else {
                 VStack(spacing: 12) {
                     ForEach(sessions) { session in
-                        TodaySessionRow(session: session)
+                        TodaySessionRow(session: session) {
+                            onSelectSession(session.id)
+                        }
                     }
                 }
             }
@@ -334,50 +348,54 @@ private struct TodaySessionListBlock: View {
 
 private struct TodaySessionRow: View {
     let session: TodaySessionItem
+    let action: () -> Void
 
     var body: some View {
-        HStack(alignment: .top, spacing: 14) {
-            Image(systemName: session.iconName)
-                .font(.headline)
-                .foregroundStyle(session.accentColor)
-                .frame(width: 40, height: 40)
-                .background(session.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        Button(action: action) {
+            HStack(alignment: .top, spacing: 14) {
+                Image(systemName: session.iconName)
+                    .font(.headline)
+                    .foregroundStyle(session.accentColor)
+                    .frame(width: 40, height: 40)
+                    .background(session.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
 
-            VStack(alignment: .leading, spacing: 6) {
-                HStack {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(session.title)
-                            .font(.body.weight(.semibold))
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(session.title)
+                                .font(.body.weight(.semibold))
 
-                        Text(session.stateLabel)
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(session.accentColor)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(session.accentColor.opacity(0.12), in: Capsule())
+                            Text(session.stateLabel)
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(session.accentColor)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(session.accentColor.opacity(0.12), in: Capsule())
+                        }
+
+                        Spacer()
+
+                        Text(session.duration)
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(.secondary)
                     }
 
-                    Spacer()
-
-                    Text(session.duration)
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(.secondary)
-                }
-
-                Text(session.timeRange)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-
-                if let note = session.note {
-                    Text(note)
+                    Text(session.timeRange)
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
+
+                    if let note = session.note {
+                        Text(note)
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
                 }
             }
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(.background, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
         }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.background, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .buttonStyle(.plain)
     }
 }
 
@@ -510,6 +528,92 @@ private struct ManualAddSessionView: View {
                             .ignoresSafeArea()
 
                         ProgressView("Saving Session")
+                            .padding(20)
+                            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    }
+                }
+            }
+        }
+    }
+}
+
+private struct EditSessionView: View {
+    @Environment(\.dismiss) private var dismiss
+    @State private var viewModel: EditSessionViewModel
+
+    init(viewModel: EditSessionViewModel) {
+        _viewModel = State(initialValue: viewModel)
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Edit Session")
+                            .font(.title3.weight(.semibold))
+
+                        Text("Adjust the start and end times, then save to update this session in your daily data.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.vertical, 4)
+                }
+
+                Section("Start") {
+                    DatePicker(
+                        "Start",
+                        selection: $viewModel.startAt,
+                        displayedComponents: [.date, .hourAndMinute]
+                    )
+                }
+
+                Section("End") {
+                    DatePicker(
+                        "End",
+                        selection: $viewModel.endAt,
+                        displayedComponents: [.date, .hourAndMinute]
+                    )
+                }
+
+                if let errorMessage = viewModel.errorMessage {
+                    Section {
+                        TodayErrorCard(message: errorMessage)
+                            .padding(0)
+                    }
+                    .listRowInsets(EdgeInsets())
+                    .listRowBackground(Color.clear)
+                }
+            }
+            .navigationTitle("Edit Session")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        Task {
+                            let didSave = await viewModel.save()
+                            if didSave {
+                                dismiss()
+                            }
+                        }
+                    }
+                    .disabled(viewModel.canSave == false)
+                }
+            }
+            .interactiveDismissDisabled(viewModel.isSaving)
+            .overlay {
+                if viewModel.isSaving {
+                    ZStack {
+                        Color.black.opacity(0.08)
+                            .ignoresSafeArea()
+
+                        ProgressView("Saving Changes")
                             .padding(20)
                             .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
                     }
@@ -697,6 +801,15 @@ private struct PreviewTodaySleepTracking: TodaySleepTracking {
 
     func addCompletedSession(startAt: Date, endAt: Date) async throws -> SleepSession {
         try SleepSession(
+            startAt: startAt,
+            endAt: endAt,
+            createdSource: .manual
+        )
+    }
+
+    func updateSession(id: UUID, startAt: Date, endAt: Date) async throws -> SleepSession {
+        try SleepSession(
+            id: id,
             startAt: startAt,
             endAt: endAt,
             createdSource: .manual
