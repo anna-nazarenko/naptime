@@ -15,6 +15,12 @@ protocol SleepSessionRepository: Sendable {
         createdSource: SleepSessionSource
     ) async throws -> SleepSession
 
+    func createCompletedSession(
+        startAt: Date,
+        endAt: Date,
+        createdSource: SleepSessionSource
+    ) async throws -> SleepSession
+
     func finishActiveSession(
         endAt: Date,
         source: SleepSessionSource

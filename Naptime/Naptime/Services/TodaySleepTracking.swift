@@ -13,6 +13,7 @@ import Foundation
 protocol TodaySleepTracking: Sendable {
     func loadActiveSession() async throws -> SleepSession?
     func loadSessions(for sleepDay: SleepDay) async throws -> [SleepSession]
+    func addCompletedSession(startAt: Date, endAt: Date) async throws -> SleepSession
     func startSession(at startAt: Date) async throws -> SleepSession
     func stopSession(at endAt: Date) async throws -> SleepSession
 }
@@ -30,6 +31,14 @@ struct DefaultTodaySleepTracking: TodaySleepTracking {
 
     func loadSessions(for sleepDay: SleepDay) async throws -> [SleepSession] {
         try await repository.fetchSessions(for: sleepDay)
+    }
+
+    func addCompletedSession(startAt: Date, endAt: Date) async throws -> SleepSession {
+        try await repository.createCompletedSession(
+            startAt: startAt,
+            endAt: endAt,
+            createdSource: .manual
+        )
     }
 
     func startSession(at startAt: Date) async throws -> SleepSession {

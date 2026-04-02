@@ -21,32 +21,28 @@ final class SwiftDataSleepSessionRepository: SleepSessionRepository, @unchecked 
         createdSource: SleepSessionSource
     ) async throws -> SleepSession {
         let context = ModelContext(modelContainer)
-
-        guard try fetchActiveRecord(in: context) == nil else {
-            throw SleepSessionError.activeSessionAlreadyExists
-        }
-
-        let now = Date.now
-        let session = try SleepSession(
+        return try createSession(
             startAt: startAt,
-            createdAt: now,
-            updatedAt: now,
-            createdSource: createdSource
+            endAt: nil,
+            createdSource: createdSource,
+            requiresNoActiveSession: true,
+            in: context
         )
-        let record = SwiftDataSleepSessionRecord(
-            id: session.id,
-            startAt: session.startAt,
-            endAt: session.endAt,
-            createdAt: session.createdAt,
-            updatedAt: session.updatedAt,
-            createdSource: session.createdSource,
-            lastModifiedSource: session.lastModifiedSource
+    }
+
+    func createCompletedSession(
+        startAt: Date,
+        endAt: Date,
+        createdSource: SleepSessionSource
+    ) async throws -> SleepSession {
+        let context = ModelContext(modelContainer)
+        return try createSession(
+            startAt: startAt,
+            endAt: endAt,
+            createdSource: createdSource,
+            requiresNoActiveSession: false,
+            in: context
         )
-
-        context.insert(record)
-        try context.save()
-
-        return try record.asDomain()
     }
 
     func finishActiveSession(
@@ -109,5 +105,42 @@ final class SwiftDataSleepSessionRepository: SleepSessionRepository, @unchecked 
         }
 
         return records.first
+    }
+
+    private func createSession(
+        startAt: Date,
+        endAt: Date?,
+        createdSource: SleepSessionSource,
+        requiresNoActiveSession: Bool,
+        in context: ModelContext
+    ) throws -> SleepSession {
+        if requiresNoActiveSession {
+            guard try fetchActiveRecord(in: context) == nil else {
+                throw SleepSessionError.activeSessionAlreadyExists
+            }
+        }
+
+        let now = Date.now
+        let session = try SleepSession(
+            startAt: startAt,
+            endAt: endAt,
+            createdAt: now,
+            updatedAt: now,
+            createdSource: createdSource
+        )
+        let record = SwiftDataSleepSessionRecord(
+            id: session.id,
+            startAt: session.startAt,
+            endAt: session.endAt,
+            createdAt: session.createdAt,
+            updatedAt: session.updatedAt,
+            createdSource: session.createdSource,
+            lastModifiedSource: session.lastModifiedSource
+        )
+
+        context.insert(record)
+        try context.save()
+
+        return try record.asDomain()
     }
 }

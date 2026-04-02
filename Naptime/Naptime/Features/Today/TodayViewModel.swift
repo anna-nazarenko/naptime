@@ -124,6 +124,11 @@ final class TodayViewModel {
             errorMessage = error.localizedDescription
         }
     }
+
+    func addManualSession(startAt: Date, endAt: Date) async throws {
+        _ = try await tracking.addCompletedSession(startAt: startAt, endAt: endAt)
+        await load()
+    }
 }
 
 enum TodayScreenState: Equatable, Sendable {

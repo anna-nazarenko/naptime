@@ -56,6 +56,7 @@ struct ContentView: View {
 
 private struct TodayView: View {
     @State private var viewModel: TodayViewModel
+    @State private var isPresentingManualAdd = false
 
     init(viewModel: TodayViewModel) {
         _viewModel = State(initialValue: viewModel)
@@ -70,7 +71,9 @@ private struct TodayView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
-                    TodayHeaderView()
+                    TodayHeaderView {
+                        isPresentingManualAdd = true
+                    }
                     TodayCTAButton(
                         isSessionActive: viewModel.isSessionActive,
                         isLoading: viewModel.isLoading
@@ -104,18 +107,43 @@ private struct TodayView: View {
         .task {
             await viewModel.loadIfNeeded()
         }
+        .sheet(isPresented: $isPresentingManualAdd) {
+            ManualAddSessionView(
+                viewModel: ManualAddSessionViewModel { startAt, endAt in
+                    try await viewModel.addManualSession(startAt: startAt, endAt: endAt)
+                }
+            )
+        }
     }
 }
 
 private struct TodayHeaderView: View {
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Today")
-                .font(.largeTitle.weight(.bold))
+    let addAction: () -> Void
 
-            Text("Track the current sleep session and review today's summary.")
-                .font(.body)
-                .foregroundStyle(.secondary)
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Today")
+                        .font(.largeTitle.weight(.bold))
+
+                    Text("Track the current sleep session and review today's summary.")
+                        .font(.body)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer(minLength: 12)
+
+                Button(action: addAction) {
+                    Label("Add Sleep", systemImage: "plus")
+                        .font(.subheadline.weight(.semibold))
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 10)
+                        .background(.background, in: Capsule())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Add sleep session")
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -405,6 +433,92 @@ private struct DetailRow: View {
     }
 }
 
+private struct ManualAddSessionView: View {
+    @Environment(\.dismiss) private var dismiss
+    @State private var viewModel: ManualAddSessionViewModel
+
+    init(viewModel: ManualAddSessionViewModel) {
+        _viewModel = State(initialValue: viewModel)
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Add Completed Session")
+                            .font(.title3.weight(.semibold))
+
+                        Text("Choose when sleep started and ended. After saving, the session will appear in your daily data.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.vertical, 4)
+                }
+
+                Section("Start") {
+                    DatePicker(
+                        "Start",
+                        selection: $viewModel.startAt,
+                        displayedComponents: [.date, .hourAndMinute]
+                    )
+                }
+
+                Section("End") {
+                    DatePicker(
+                        "End",
+                        selection: $viewModel.endAt,
+                        displayedComponents: [.date, .hourAndMinute]
+                    )
+                }
+
+                if let errorMessage = viewModel.errorMessage {
+                    Section {
+                        TodayErrorCard(message: errorMessage)
+                            .padding(0)
+                    }
+                    .listRowInsets(EdgeInsets())
+                    .listRowBackground(Color.clear)
+                }
+            }
+            .navigationTitle("Manual Add")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        Task {
+                            let didSave = await viewModel.save()
+                            if didSave {
+                                dismiss()
+                            }
+                        }
+                    }
+                    .disabled(viewModel.canSave == false)
+                }
+            }
+            .interactiveDismissDisabled(viewModel.isSaving)
+            .overlay {
+                if viewModel.isSaving {
+                    ZStack {
+                        Color.black.opacity(0.08)
+                            .ignoresSafeArea()
+
+                        ProgressView("Saving Session")
+                            .padding(20)
+                            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    }
+                }
+            }
+        }
+    }
+}
+
 private struct AppSectionView: View {
     let title: String
     let systemImage: String
@@ -579,6 +693,14 @@ private struct PreviewTodaySleepTracking: TodaySleepTracking {
 
     func loadSessions(for sleepDay: SleepDay) async throws -> [SleepSession] {
         sessions.filter { $0.overlaps(with: sleepDay.interval) }
+    }
+
+    func addCompletedSession(startAt: Date, endAt: Date) async throws -> SleepSession {
+        try SleepSession(
+            startAt: startAt,
+            endAt: endAt,
+            createdSource: .manual
+        )
     }
 
     func startSession(at startAt: Date) async throws -> SleepSession {
