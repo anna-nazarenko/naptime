@@ -121,6 +121,7 @@ enum SleepSessionError: LocalizedError, Equatable, Sendable {
     case sessionAlreadyCompleted
     case activeSessionAlreadyExists
     case noActiveSession
+    case sessionNotFound
     case overlappingSession
 
     var errorDescription: String? {
@@ -133,6 +134,8 @@ enum SleepSessionError: LocalizedError, Equatable, Sendable {
             return "Another active sleep session already exists."
         case .noActiveSession:
             return "There is no active sleep session."
+        case .sessionNotFound:
+            return "This sleep session could not be found."
         case .overlappingSession:
             return "Sleep sessions cannot overlap."
         }

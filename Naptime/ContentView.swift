@@ -58,6 +58,7 @@ private struct TodayView: View {
     @State private var viewModel: TodayViewModel
     @State private var isPresentingManualAdd = false
     @State private var editingSession: SleepSession?
+    @State private var feedbackMessage: String?
 
     init(viewModel: TodayViewModel) {
         _viewModel = State(initialValue: viewModel)
@@ -73,6 +74,7 @@ private struct TodayView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
                     TodayHeaderView {
+                        feedbackMessage = nil
                         isPresentingManualAdd = true
                     }
                     TodayCTAButton(
@@ -86,6 +88,9 @@ private struct TodayView: View {
                     if let errorMessage = viewModel.errorMessage {
                         TodayErrorCard(message: errorMessage)
                     }
+                    if let feedbackMessage {
+                        TodayFeedbackCard(message: feedbackMessage)
+                    }
                     if let activeSession = viewModel.activeSession {
                         TodayActiveSessionCard(session: activeSession)
                     }
@@ -97,6 +102,7 @@ private struct TodayView: View {
                         sessions: sessionItems,
                         state: viewModel.screenState,
                         onSelectSession: { sessionID in
+                            feedbackMessage = nil
                             editingSession = viewModel.sessions.first { $0.id == sessionID }
                         }
                     )
@@ -120,8 +126,17 @@ private struct TodayView: View {
         }
         .sheet(item: $editingSession) { session in
             EditSessionView(
-                viewModel: EditSessionViewModel(session: session) { id, startAt, endAt in
-                    try await viewModel.editSession(id: id, startAt: startAt, endAt: endAt)
+                viewModel: EditSessionViewModel(
+                    session: session,
+                    onSave: { id, startAt, endAt in
+                        try await viewModel.editSession(id: id, startAt: startAt, endAt: endAt)
+                    },
+                    onDelete: { id in
+                        try await viewModel.deleteSession(id: id)
+                    }
+                ),
+                onDeleteSuccess: {
+                    feedbackMessage = "Session deleted."
                 }
             )
         }
@@ -262,6 +277,22 @@ private struct TodayErrorCard: View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: "exclamationmark.triangle.fill")
                 .foregroundStyle(.orange)
+
+            Text(message)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+        .cardStyle()
+    }
+}
+
+private struct TodayFeedbackCard: View {
+    let message: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: "checkmark.circle.fill")
+                .foregroundStyle(.green)
 
             Text(message)
                 .font(.subheadline)
@@ -540,9 +571,12 @@ private struct ManualAddSessionView: View {
 private struct EditSessionView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var viewModel: EditSessionViewModel
+    @State private var isPresentingDeleteConfirmation = false
+    let onDeleteSuccess: () -> Void
 
-    init(viewModel: EditSessionViewModel) {
+    init(viewModel: EditSessionViewModel, onDeleteSuccess: @escaping () -> Void = {}) {
         _viewModel = State(initialValue: viewModel)
+        self.onDeleteSuccess = onDeleteSuccess
     }
 
     var body: some View {
@@ -576,6 +610,16 @@ private struct EditSessionView: View {
                     )
                 }
 
+                Section {
+                    Button(role: .destructive) {
+                        isPresentingDeleteConfirmation = true
+                    } label: {
+                        Text("Delete Session")
+                            .frame(maxWidth: .infinity, alignment: .center)
+                    }
+                    .disabled(viewModel.canDelete == false)
+                }
+
                 if let errorMessage = viewModel.errorMessage {
                     Section {
                         TodayErrorCard(message: errorMessage)
@@ -606,14 +650,33 @@ private struct EditSessionView: View {
                     .disabled(viewModel.canSave == false)
                 }
             }
-            .interactiveDismissDisabled(viewModel.isSaving)
+            .interactiveDismissDisabled(viewModel.isSaving || viewModel.isDeleting)
+            .confirmationDialog(
+                "Delete this session?",
+                isPresented: $isPresentingDeleteConfirmation,
+                titleVisibility: .visible
+            ) {
+                Button("Delete Session", role: .destructive) {
+                    Task {
+                        let didDelete = await viewModel.deleteSession()
+                        if didDelete {
+                            onDeleteSuccess()
+                            dismiss()
+                        }
+                    }
+                }
+
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("This removes the sleep session from your data, today's summary, and the session list.")
+            }
             .overlay {
-                if viewModel.isSaving {
+                if viewModel.isSaving || viewModel.isDeleting {
                     ZStack {
                         Color.black.opacity(0.08)
                             .ignoresSafeArea()
 
-                        ProgressView("Saving Changes")
+                        ProgressView(viewModel.isDeleting ? "Deleting Session" : "Saving Changes")
                             .padding(20)
                             .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
                     }
@@ -815,6 +878,8 @@ private struct PreviewTodaySleepTracking: TodaySleepTracking {
             createdSource: .manual
         )
     }
+
+    func deleteSession(id: UUID) async throws {}
 
     func startSession(at startAt: Date) async throws -> SleepSession {
         try SleepSession(startAt: startAt, createdSource: .iphone)

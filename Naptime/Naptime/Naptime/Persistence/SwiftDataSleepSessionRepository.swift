@@ -60,7 +60,7 @@ final class SwiftDataSleepSessionRepository: SleepSessionRepository, @unchecked 
         )
 
         guard let record = try context.fetch(descriptor).first else {
-            throw SleepSessionError.noActiveSession
+            throw SleepSessionError.sessionNotFound
         }
 
         var session = try record.asDomain()
@@ -78,6 +78,23 @@ final class SwiftDataSleepSessionRepository: SleepSessionRepository, @unchecked 
         try context.save()
 
         return session
+    }
+
+    func deleteSession(id: UUID) async throws {
+        let context = ModelContext(modelContainer)
+
+        let descriptor = FetchDescriptor<SwiftDataSleepSessionRecord>(
+            predicate: #Predicate { record in
+                record.id == id
+            }
+        )
+
+        guard let record = try context.fetch(descriptor).first else {
+            throw SleepSessionError.sessionNotFound
+        }
+
+        context.delete(record)
+        try context.save()
     }
 
     func finishActiveSession(
