@@ -58,7 +58,9 @@ private struct TodayView: View {
     @State private var viewModel: TodayViewModel
     @State private var isPresentingManualAdd = false
     @State private var editingSession: SleepSession?
+    @State private var pendingDeleteSession: SleepSession?
     @State private var feedbackMessage: String?
+    @State private var localErrorMessage: String?
 
     init(viewModel: TodayViewModel) {
         _viewModel = State(initialValue: viewModel)
@@ -75,6 +77,7 @@ private struct TodayView: View {
                 VStack(alignment: .leading, spacing: 24) {
                     TodayHeaderView {
                         feedbackMessage = nil
+                        localErrorMessage = nil
                         isPresentingManualAdd = true
                     }
                     TodayCTAButton(
@@ -87,6 +90,9 @@ private struct TodayView: View {
                     }
                     if let errorMessage = viewModel.errorMessage {
                         TodayErrorCard(message: errorMessage)
+                    }
+                    if let localErrorMessage {
+                        TodayErrorCard(message: localErrorMessage)
                     }
                     if let feedbackMessage {
                         TodayFeedbackCard(message: feedbackMessage)
@@ -103,7 +109,13 @@ private struct TodayView: View {
                         state: viewModel.screenState,
                         onSelectSession: { sessionID in
                             feedbackMessage = nil
+                            localErrorMessage = nil
                             editingSession = viewModel.sessions.first { $0.id == sessionID }
+                        },
+                        onDeleteSession: { sessionID in
+                            feedbackMessage = nil
+                            localErrorMessage = nil
+                            pendingDeleteSession = viewModel.sessions.first { $0.id == sessionID }
                         }
                     )
                 }
@@ -139,6 +151,39 @@ private struct TodayView: View {
                     feedbackMessage = "Session deleted."
                 }
             )
+        }
+        .confirmationDialog(
+            "Delete this session?",
+            isPresented: .init(
+                get: { pendingDeleteSession != nil },
+                set: { isPresented in
+                    if isPresented == false {
+                        pendingDeleteSession = nil
+                    }
+                }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("Delete Session", role: .destructive) {
+                guard let session = pendingDeleteSession else { return }
+
+                Task {
+                    do {
+                        try await viewModel.deleteSession(id: session.id)
+                        feedbackMessage = "Session deleted."
+                        localErrorMessage = nil
+                    } catch {
+                        localErrorMessage = error.localizedDescription
+                    }
+                    pendingDeleteSession = nil
+                }
+            }
+
+            Button("Cancel", role: .cancel) {
+                pendingDeleteSession = nil
+            }
+        } message: {
+            Text("This removes the sleep session from your data, today's summary, and the session list.")
         }
     }
 }
@@ -335,6 +380,7 @@ private struct TodaySessionListBlock: View {
     let sessions: [TodaySessionItem]
     let state: TodayScreenState
     let onSelectSession: (UUID) -> Void
+    let onDeleteSession: (UUID) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -365,13 +411,25 @@ private struct TodaySessionListBlock: View {
                     message: "Start tracking when sleep begins. Today's sessions will appear here."
                 )
             } else {
-                VStack(spacing: 12) {
+                List {
                     ForEach(sessions) { session in
                         TodaySessionRow(session: session) {
                             onSelectSession(session.id)
                         }
+                        .listRowInsets(EdgeInsets(top: 6, leading: 0, bottom: 6, trailing: 0))
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
+                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                            Button("Delete", role: .destructive) {
+                                onDeleteSession(session.id)
+                            }
+                        }
                     }
                 }
+                .listStyle(.plain)
+                .scrollDisabled(true)
+                .scrollContentBackground(.hidden)
+                .frame(minHeight: CGFloat(sessions.count) * 96)
             }
         }
     }
